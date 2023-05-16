@@ -1,4 +1,4 @@
-import { isJson } from "./f/fetch"
+import { isJson, UPD_META } from "./f/fetch"
 
 
 export function reducer(state, action) {
@@ -21,6 +21,15 @@ export function reducer(state, action) {
         case "SET_DISK_CLASS":
             state.D = pay
             break
+
+        case 'SET_ORDERS':
+            state.orders = pay
+            break;
+
+        case 'SET_ORDER_STATUS':
+            const ind = state.orders.findIndex((order) => { return order.ID === pay.id })
+            state.orders[ind].order_status = pay.newStatus
+            break;
 
         default:
             break;

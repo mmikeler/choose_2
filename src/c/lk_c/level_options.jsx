@@ -9,8 +9,16 @@ export function LEVEL_OPTIONS(props) {
 
   let levelOptions = []
   switch (state.D.storageLevel) {
+    case 0:
+      levelOptions.push(<ADD_DIRECTORY key="add_dir" reloadAction={props.forceUpdate} />)
+      break
+
     case 1:
       levelOptions.push(<ADD_COLLECTION key="add_collections" reloadAction={props.forceUpdate} />)
+      break
+
+    case 2:
+      levelOptions.push(<ADD_DIRECTORY key="add_part" reloadAction={props.forceUpdate} />)
       break
 
     default:
@@ -36,10 +44,47 @@ export function LEVEL_OPTIONS(props) {
 function ADD_COLLECTION(props) {
   const { state } = useContext(AppContext)
   const [open, setOpen] = useState(false)
+  const isOpenDir = state.D.path.includes('Заказы') || state.D.path.includes('assets') ? true : false
 
   let data = {
     path: state.D.path,
-    user_id: state.user.ID,
+  }
+  const CB = (name, value) => {
+    data[name] = value
+  }
+
+  const submitAction = () => {
+    console.log(data);
+    state.D.addResource(data).then(res => res.json()).then(res => {
+      if (res?.href) {
+        props.reloadAction()
+      }
+    })
+  }
+
+  if (isOpenDir) return null
+
+  return (
+    <>
+      <div className="btn btn-outline-secondary btn-sm" onClick={() => { setOpen(true) }}>Добавить сессию</div>
+      {open &&
+        <BS_MODAL title="Добавить сессию" submitAction={submitAction} closeAction={() => setOpen(false)}>
+          <div className="alert alert-info text-center">Код коллекции будет добавлен автоматически</div>
+          <UNC_TEXT label="Название" callBackAction={(v) => CB('name', v)} />
+        </BS_MODAL>
+      }
+    </>
+  )
+}
+
+function ADD_DIRECTORY(props) {
+  const { state } = useContext(AppContext)
+  const [open, setOpen] = useState(false)
+  const isOpenDir = state.D.path.includes('Заказы') || state.D.path.includes('assets') ? true : false
+
+
+  let data = {
+    path: state.D.path,
   }
   const CB = (name, value) => {
     data[name] = value
@@ -53,13 +98,14 @@ function ADD_COLLECTION(props) {
     })
   }
 
+  if (isOpenDir) return null
+
   return (
     <>
-      <div className="btn btn-outline-secondary" onClick={() => { setOpen(true) }}>Добавить сессию</div>
+      <div className="btn btn-outline-secondary btn-sm" onClick={() => { setOpen(true) }}>Добавить папку</div>
       {open &&
-        <BS_MODAL title="Добавить сессию" submitAction={submitAction} closeAction={() => setOpen(false)}>
-          <div className="alert alert-info text-center">Код коллекции будет добавлен автоматически</div>
-          <UNC_TEXT label="Название" callbackAction={(v) => CB('name', v)} />
+        <BS_MODAL title="Добавить папку" submitAction={submitAction} closeAction={() => setOpen(false)}>
+          <UNC_TEXT label="Название" callBackAction={(v) => CB('name', v)} />
         </BS_MODAL>
       }
     </>
@@ -74,15 +120,15 @@ function STORAGE_LEVEL(props) {
       break
 
     case 1:
-      label = 'Группы > Сессии'
+      label = 'Группы > Коллекции'
       break
 
     case 2:
-      label = 'Группы > Сессии > Разделы'
+      label = 'Группы > Коллекции > Разделы'
       break
 
     case 3:
-      label = 'Группы > Сессии > Разделы > Фото'
+      label = 'Группы > Коллекции > Разделы > Фото'
       break
 
     default:

@@ -1,12 +1,9 @@
-import { useContext, useCallback, useReducer } from "react"
+import { useContext, useReducer, useState, useEffect, useRef, useMemo } from "react"
 import { AppContext } from "../../App"
-import { TEXT, UNC_TEXTAREA, UNC_HIDDEN } from "../fields/fields"
+import { TEXT, UNC_TEXTAREA, UNC_HIDDEN, UNC_DATE_FROMTO } from "../fields/fields"
 import { Disk } from "../../f/disk"
-import { useState } from "react"
-import { useEffect } from "react"
-import { Alarm, Cart2, Cloud, ExclamationCircle, Stack } from "react-bootstrap-icons"
+import { Cart2, Cloud, ExclamationCircle, FolderFill, Stack } from "react-bootstrap-icons"
 import { OFFCANVAS } from "../bs-components/offcanvas"
-import { useRef } from "react"
 import { FORMATS_OPTION } from "./formats_option"
 import { LEVEL_OPTIONS } from "./level_options"
 import { API, REGISTER_SESSION } from "../../f/fetch"
@@ -81,12 +78,14 @@ function TABLE(props) {
   }
   const createList = () => props.resource.items.map((item, i) => {
     if (state.D.storageLevel >= 3 && item.type === 'dir') { return null }
-
+    if (state.D.storageLevel < 3 && item.type === 'file') { return null }
     return <TABLE_ROW key={i} item={item} changeResource={changeResource} />
   })
 
+  const memoList = useMemo(createList, [])
+
   useEffect(() => {
-    setList(createList())
+    setList(memoList)
   }, [])
 
   return (
@@ -104,12 +103,14 @@ function TABLE_ROW(props) {
   const { state } = useContext(AppContext)
   const [open, toggleOpen] = useState(false)
   const [item, setItemData] = useState(props.item)
+  const isOpenDirMeta = state.D.path.includes('Заказы') || state.D.path.includes('assets') ? true : false
 
   if (!item) return null
 
+
   const prepareName = (name) => {
-    let end = name.split('.')[1]
-    if (name.length > 10) {
+    let end = name.split('.')[1] ?? ''
+    if (name.length > 20) {
       return name.substr(0, 10) + '...' + end
     }
     else {
@@ -118,26 +119,32 @@ function TABLE_ROW(props) {
   }
 
   return (
-    <div className={`item${' ' + item.type}`}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        toggleOpen(true)
-      }}
-      onDoubleClick={(e) => props.changeResource(item.path, e)}>
+    <>
+      <div className={`item${' ' + item.type}`}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          !isOpenDirMeta && toggleOpen(true)
+        }}
+        onClick={(e) => {
+          item.type === "dir" && props.changeResource(item.path, e)
+        }}>
 
-      <THUMB item={item} />
+        <THUMB item={item} />
 
-      {state.D.storageLevel === 1 && !item?.custom_properties?._CODE &&
-        <span className="icon">< ExclamationCircle color="red" size="18" /></span>
-      }
+        {state.D.storageLevel === 1 && !item?.custom_properties?._CODE && !isOpenDirMeta &&
+          <span className="icon">< ExclamationCircle color="red" size="18" /></span>
+        }
 
-      <div className="dir-name text-center pt-1">{prepareName(item.name)}</div>
+        <div className="dir-name text-center pt-1">{prepareName(item.name)}</div>
+
+      </div>
 
       {open &&
         <OFFCANVAS title="Настройки папки" closeAction={() => toggleOpen(false)}>
           <RESOURCE_META resource={item} setItemDataAction={setItemData} />
         </OFFCANVAS>}
-    </div>
+
+    </>
   )
 }
 
@@ -160,7 +167,7 @@ export function THUMB(props) {
         props.item.type === "dir" ?
           (props.item.name === 'Заказы' ?
             <Cart2 size={60} color={state.style.iconColor} /> :
-            <Stack size={60} color={state.style.iconColor} />) :
+            <FolderFill size={60} color={state.style.iconColor} />) :
           <div className="thumb" style={{ backgroundImage: `url(${base64IMG})` }}></div>
       }
     </>
@@ -170,6 +177,7 @@ export function THUMB(props) {
 function RESOURCE_META(props) {
   const { state } = useContext(AppContext)
   const [meta, setMeta] = useState(props.resource)
+  const [waiting, setWaiting] = useState(false)
   const form = useRef(null)
   const [addedFormats, setAddedFormats] = useState([])
 
@@ -178,9 +186,13 @@ function RESOURCE_META(props) {
     form.current.querySelectorAll('input,textarea').forEach(f => {
       data[f.name] = f.value;
     })
+    setWaiting(true)
     state.D.updateResourceCustomProperties(props.resource.path, data)
       .then(res => res.json())
-      .then(res => setMeta(res))
+      .then(res => {
+        setMeta(res)
+        setWaiting(false)
+      })
   }
 
   const toggleFormatAction = (formatName, checked) => {
@@ -243,6 +255,18 @@ function RESOURCE_META(props) {
           </div>
         }
 
+        {state.D.storageLevel === 1 ?
+          <>
+            <div className="h6 mt-4 mb-3">Сессия будет активна</div>
+            <UNC_DATE_FROMTO
+              date_from={meta.custom_properties?.date_from}
+              date_to={meta.custom_properties?.date_to}
+            />
+            <div className="small mb-3 text-muted">В это время можно будет сделать заказ</div>
+          </>
+          : null
+        }
+
         <div className="h6">Заметки</div>
 
         <UNC_TEXTAREA label="Видите только Вы" name="comment_self" maxLength="100"
@@ -262,7 +286,18 @@ function RESOURCE_META(props) {
         toggleFormatAction={toggleFormatAction}
         value={addedFormats} />
 
-      <button className="btn btn-primary ms-auto" onClick={saveMeta}>Сохранить</button>
+      {waiting ?
+        <button className="btn btn-primary ms-auto">Обработка...</button>
+        : <button className="btn btn-primary ms-auto" onClick={saveMeta}>Сохранить</button>
+      }
+
+      <div className="my-auto text-center">
+        <a
+          className="btn btn-warning"
+          href={window.location.origin + '/nakladnaya?c=' + meta.custom_properties.ID}
+          target="_blank"
+          rel="noopener noreferrer">Составить лист выдачи</a>
+      </div>
 
       <button className="btn btn-danger mt-auto w-100" onClick={removeResource}>Удалить ресурс</button>
     </>
@@ -279,16 +314,32 @@ export function DISK_SPACE_BAR(props) {
 }
 
 function GET_YANDEX_APP_KEY_FORM() {
+  const { dispatch } = useContext(AppContext)
   const clientID = '159527890aee42b699bc57022fb0afbc';
   const OAuthUrl = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=' + clientID + '&display=popup'
+
+  const access_token = window.location.hash.match(new RegExp('access_token' + '=([^&]*)'))
+
+  useEffect(() => {
+    access_token &&
+      dispatch({
+        type: 'UPDATE_USER_META',
+        pay: {
+          meta_key: "_yandex_app_key",
+          meta_value: access_token[1]
+        }
+      })
+  }, [])
+
   return (
     <>
-      <p>Получите ключ приложения <a target="_blank" href={OAuthUrl}>ЗДЕСЬ</a> и скопируйте его в поле ниже.</p>
+      <p>Получите ключ приложения <a href={OAuthUrl}>ЗДЕСЬ</a>.</p>
       <TEXT
         label="Яндекс ключ"
         notice="Приватный ключ хранилища"
         fieldkey="_yandex_app_key"
         maxLength="100"
+        defaultValue={access_token ? access_token[1] : ''}
       />
     </>
   )

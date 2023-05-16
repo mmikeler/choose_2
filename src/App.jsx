@@ -7,6 +7,7 @@ import { reducer } from './reducer';
 import { LK } from './c/lk';
 import { useEffect } from 'react';
 import { INIT_REQUEST } from './f/fetch';
+import { API } from './f/api';
 
 
 export let AppContext = createContext(null)
@@ -15,24 +16,29 @@ function App() {
 
   const [state, dispatch] = useReducer(reducer, {
     ajaxUrl: window.myajax.url,
+    API: new API(window.myajax.url),
+    orders: [],
     user: {
-      _SUPERKEY: 'demokey',
-      ID: 2,
+      _SUPERKEY: 'demokey2',
+      ID: 1,
       formats: []
     },
     style: {
-      iconColor: 'cornflowerblue',
+      iconColor: '#fdefb2',
+      iconBorderColor: '#d1c27f',
     }
 
   })
 
   useEffect(() => {
+
     INIT_REQUEST(state.user._SUPERKEY, (res) => {
       dispatch({
         type: 'LOG_IN',
         pay: res
       })
     })
+
   }, [])
 
   return (
